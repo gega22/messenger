@@ -1,0 +1,23 @@
+/* Custom styles or overrides if needed beyond Tailwind CSS */
+body {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom scrollbars for chat list and messages */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.2);
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.4);
+}
