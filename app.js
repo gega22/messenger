@@ -2,7 +2,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyBgZe_h6ydOaQVNFQKrNOwnkooG565ZkB0",
     authDomain: "messages-6707f.firebaseapp.com",
@@ -13,26 +12,22 @@ const firebaseConfig = {
     measurementId: "G-DZ2VGD4SZM"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// App state
 let currentUser = null;
 let activeChatUser = null;
 let currentCustomPhoto = "";
 let unsubscribeMessages = null;
 let unsubscribeUsers = null;
 
-// Crop & Zoom State Variables
 let loadedImage = null;
 let imgX = 0, imgY = 0;
 let imgScale = 1;
 let isDragging = false;
 let startX = 0, startY = 0;
 
-// DOM Elements
 const authScreen = document.getElementById('auth-screen');
 const googleLoginBtn = document.getElementById('google-login-btn');
 const anonLoginBtn = document.getElementById('anon-login-btn');
@@ -50,12 +45,10 @@ const messageForm = document.getElementById('message-form');
 const messageInput = document.getElementById('message-input');
 const userSearchInput = document.getElementById('user-search');
 
-// Mobile & Layout DOM elements
 const sidebarContainer = document.getElementById('sidebar-container');
 const chatMainContainer = document.getElementById('chat-main-container');
 const backToListBtn = document.getElementById('back-to-list-btn');
 
-// Settings Modal DOM Elements
 const settingsBtn = document.getElementById('settings-btn');
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
@@ -69,7 +62,6 @@ const cropCanvas = document.getElementById('crop-canvas');
 const ctx = cropCanvas.getContext('2d');
 const zoomSlider = document.getElementById('zoom-slider');
 
-// Auth State Listener
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -115,7 +107,6 @@ function updateUserHeaderUI(name, photoURL) {
     }
 }
 
-// Sign In Handlers
 googleLoginBtn.addEventListener('click', async () => {
     const provider = new GoogleAuthProvider();
     try {
@@ -136,7 +127,6 @@ anonLoginBtn.addEventListener('click', async () => {
 
 logoutBtn.addEventListener('click', () => signOut(auth));
 
-// Settings Modal Controls
 settingsBtn.addEventListener('click', () => {
     settingsNameInput.value = currentUser.displayName || '';
     settingsFileInput.value = '';
@@ -149,7 +139,6 @@ const closeSettings = () => settingsModal.classList.add('hidden');
 closeSettingsBtn.addEventListener('click', closeSettings);
 cancelSettingsBtn.addEventListener('click', closeSettings);
 
-// Handle Image File Selection for Cropping
 settingsFileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -179,7 +168,6 @@ function drawCanvas() {
     ctx.drawImage(loadedImage, imgX, imgY, loadedImage.width * imgScale, loadedImage.height * imgScale);
 }
 
-// Canvas Dragging (Pan) Logic
 cropCanvas.addEventListener('mousedown', (e) => {
     isDragging = true;
     startX = e.clientX - imgX;
@@ -227,7 +215,6 @@ zoomSlider.addEventListener('input', (e) => {
     drawCanvas();
 });
 
-// Save Profile Changes
 settingsForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const newName = settingsNameInput.value.trim();
@@ -261,7 +248,6 @@ settingsForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Real-time Users List Listener
 function startRealtimeUsersListener(filter = "") {
     if (unsubscribeUsers) unsubscribeUsers();
 
@@ -285,13 +271,14 @@ function startRealtimeUsersListener(filter = "") {
                 ? `<img src="${userData.photoURL}" class="w-10 h-10 rounded-full object-cover">` 
                 : userData.displayName[0].toUpperCase();
 
+            // Email removed here to keep user lists completely private
             div.innerHTML = `
                 <div class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center shrink-0 overflow-hidden">
                     ${avatarContent}
                 </div>
                 <div class="flex-1 min-w-0">
                     <h4 class="font-medium text-sm truncate">${userData.displayName}</h4>
-                    <p class="text-xs text-slate-400 truncate">${userData.email}</p>
+                    <span class="text-xs text-emerald-400">Online</span>
                 </div>
             `;
             div.addEventListener('click', () => openChat(userData));

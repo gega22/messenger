@@ -64,7 +64,7 @@
                         <input type="file" id="settings-file-input" accept="image/*" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-300 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-600 file:text-white hover:file:bg-brand-500 transition-colors">
                     </div>
 
-                    <!-- Crop & Zoom Area (Hidden until image selected) -->
+                    <!-- Crop & Zoom Area -->
                     <div id="crop-container" class="hidden flex flex-col items-center bg-slate-950 border border-slate-800 rounded-xl p-3">
                         <p class="text-xs text-slate-400 mb-2">Drag image to position • Use slider to zoom</p>
                         <div class="relative w-40 h-40 rounded-full overflow-hidden border-2 border-brand-500 cursor-grab active:cursor-grabbing shadow-inner">
@@ -117,7 +117,6 @@
 
             <!-- Chat List -->
             <div id="chat-list" class="flex-1 overflow-y-auto divide-y divide-slate-800/40">
-                <!-- Populated dynamically -->
                 <div class="p-4 text-center text-slate-500 text-sm">Loading chats...</div>
             </div>
         </div>
@@ -138,11 +137,9 @@
                 <!-- Chat Header -->
                 <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/40 backdrop-blur">
                     <div class="flex items-center gap-3">
-                        <!-- Mobile Back Button -->
                         <button id="back-to-list-btn" class="md:hidden text-slate-400 hover:text-white mr-1 p-1">
                             <i class="fa-solid fa-arrow-left text-lg"></i>
                         </button>
-
                         <div id="active-chat-avatar" class="w-9 h-9 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-sm shrink-0">?</div>
                         <div>
                             <h3 id="active-chat-name" class="font-semibold text-sm">Chat Name</h3>
@@ -152,9 +149,7 @@
                 </div>
 
                 <!-- Message History -->
-                <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
-                    <!-- Messages go here -->
-                </div>
+                <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col"></div>
 
                 <!-- Message Input Bar -->
                 <form id="message-form" class="p-4 border-t border-slate-800 bg-slate-900/40 flex items-center gap-3">
@@ -168,7 +163,6 @@
 
     </div>
 
-    <!-- External JavaScript File -->
     <script type="module" src="app.js"></script>
 </body>
 </html>

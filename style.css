@@ -1,9 +1,7 @@
-/* Custom styles or overrides if needed beyond Tailwind CSS */
 body {
     -webkit-tap-highlight-color: transparent;
 }
 
-/* Custom scrollbars for chat list and messages */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
