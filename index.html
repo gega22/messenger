@@ -45,7 +45,7 @@
         </div>
 
         <!-- SIDEBAR: Conversations & Users -->
-        <div class="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/50">
+        <div id="sidebar-container" class="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/50">
             <!-- User Header -->
             <div class="p-4 border-b border-slate-800 flex items-center justify-between">
                 <div class="flex items-center gap-3">
@@ -92,6 +92,11 @@
                 <!-- Chat Header -->
                 <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/40 backdrop-blur">
                     <div class="flex items-center gap-3">
+                        <!-- Mobile Back Button -->
+                        <button id="back-to-list-btn" class="md:hidden text-slate-400 hover:text-white mr-1 p-1">
+                            <i class="fa-solid fa-arrow-left text-lg"></i>
+                        </button>
+
                         <div id="active-chat-avatar" class="w-9 h-9 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-sm">?</div>
                         <div>
                             <h3 id="active-chat-name" class="font-semibold text-sm">Chat Name</h3>
@@ -161,6 +166,11 @@
         const messageForm = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
         const userSearchInput = document.getElementById('user-search');
+        
+        // Mobile layout DOM elements
+        const sidebarContainer = document.getElementById('sidebar-container');
+        const chatMainContainer = document.getElementById('chat-main-container');
+        const backToListBtn = document.getElementById('back-to-list-btn');
 
         // Auth State Listener
         onAuthStateChanged(auth, async (user) => {
@@ -261,6 +271,11 @@
             noChatSelectedEl.classList.add('hidden');
             activeChatEl.classList.remove('hidden');
 
+            // Toggle visibility for mobile screens
+            sidebarContainer.classList.add('hidden');
+            chatMainContainer.classList.remove('hidden');
+            chatMainContainer.classList.add('flex');
+
             activeChatNameEl.textContent = user.displayName;
             activeChatAvatarEl.innerHTML = user.photoURL ? `<img src="${user.photoURL}" class="w-9 h-9 rounded-full object-cover">` : user.displayName[0].toUpperCase();
 
@@ -286,6 +301,13 @@
                 messageContainer.scrollTop = messageContainer.scrollHeight;
             });
         }
+
+        // Back button listener for mobile navigation
+        backToListBtn.addEventListener('click', () => {
+            sidebarContainer.classList.remove('hidden');
+            chatMainContainer.classList.add('hidden');
+            chatMainContainer.classList.remove('flex');
+        });
 
         // Send Message
         messageForm.addEventListener('submit', async (e) => {
