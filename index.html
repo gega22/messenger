@@ -44,6 +44,32 @@
             </div>
         </div>
 
+        <!-- SETTINGS MODAL -->
+        <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold">Profile Settings</h3>
+                    <button id="close-settings-btn" class="text-slate-400 hover:text-white p-1">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <form id="settings-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Display Name</label>
+                        <input type="text" id="settings-name-input" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">Upload Profile Picture</label>
+                        <input type="file" id="settings-file-input" accept="image/*" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-300 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-600 file:text-white hover:file:bg-brand-500 transition-colors">
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="cancel-settings-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-sm font-medium transition-colors">Cancel</button>
+                        <button type="submit" id="save-settings-submit" class="bg-brand-600 hover:bg-brand-500 text-white px-5 py-2 rounded-xl text-sm font-medium transition-colors">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- SIDEBAR: Conversations & Users -->
         <div id="sidebar-container" class="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/50 shrink-0">
             <!-- User Header -->
@@ -52,13 +78,18 @@
                     <img id="user-avatar" src="" alt="Avatar" class="w-10 h-10 rounded-full bg-slate-700 object-cover hidden">
                     <div id="user-avatar-fallback" class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center">?</div>
                     <div>
-                        <h3 id="user-name" class="font-semibold text-sm truncate max-w-[140px]">Loading...</h3>
+                        <h3 id="user-name" class="font-semibold text-sm truncate max-w-[120px]">Loading...</h3>
                         <span class="text-xs text-emerald-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Online</span>
                     </div>
                 </div>
-                <button id="logout-btn" title="Sign Out" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg transition-colors">
-                    <i class="fa-solid fa-right-from-bracket text-lg"></i>
-                </button>
+                <div class="flex items-center gap-1">
+                    <button id="settings-btn" title="Settings" class="text-slate-400 hover:text-white p-2 rounded-lg transition-colors">
+                        <i class="fa-solid fa-gear text-lg"></i>
+                    </button>
+                    <button id="logout-btn" title="Sign Out" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg transition-colors">
+                        <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Search / Filter Users -->
@@ -97,7 +128,7 @@
                             <i class="fa-solid fa-arrow-left text-lg"></i>
                         </button>
 
-                        <div id="active-chat-avatar" class="w-9 h-9 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-sm">?</div>
+                        <div id="active-chat-avatar" class="w-9 h-9 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-sm shrink-0">?</div>
                         <div>
                             <h3 id="active-chat-name" class="font-semibold text-sm">Chat Name</h3>
                             <span id="active-chat-status" class="text-xs text-slate-400">Active now</span>
@@ -125,8 +156,9 @@
     <!-- Firebase SDK Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
@@ -143,11 +175,13 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const storage = getStorage(app);
 
         // App state
         let currentUser = null;
         let activeChatUser = null;
         let unsubscribeMessages = null;
+        let unsubscribeUsers = null;
 
         // DOM Elements
         const authScreen = document.getElementById('auth-screen');
@@ -167,10 +201,20 @@
         const messageInput = document.getElementById('message-input');
         const userSearchInput = document.getElementById('user-search');
         
-        // Mobile layout DOM elements
+        // Mobile & Layout DOM elements
         const sidebarContainer = document.getElementById('sidebar-container');
         const chatMainContainer = document.getElementById('chat-main-container');
         const backToListBtn = document.getElementById('back-to-list-btn');
+
+        // Settings Modal DOM Elements
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeSettingsBtn = document.getElementById('close-settings-btn');
+        const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
+        const settingsForm = document.getElementById('settings-form');
+        const settingsNameInput = document.getElementById('settings-name-input');
+        const settingsFileInput = document.getElementById('settings-file-input');
+        const saveSettingsSubmit = document.getElementById('save-settings-submit');
 
         // Auth State Listener
         onAuthStateChanged(auth, async (user) => {
@@ -178,15 +222,8 @@
                 currentUser = user;
                 authScreen.classList.add('hidden');
                 
-                // Update UI Profile
-                userNameEl.textContent = user.displayName || `User_${user.uid.slice(0,5)}`;
-                if (user.photoURL) {
-                    userAvatarEl.src = user.photoURL;
-                    userAvatarEl.classList.remove('hidden');
-                    userAvatarFallback.classList.add('hidden');
-                } else {
-                    userAvatarFallback.textContent = (user.displayName || 'U')[0].toUpperCase();
-                }
+                // Update UI Profile Header
+                updateUserHeaderUI(user);
 
                 // Register user in Firestore directory
                 await setDoc(doc(db, "users", user.uid), {
@@ -197,12 +234,26 @@
                     lastSeen: serverTimestamp()
                 }, { merge: true });
 
-                loadUsers();
+                startRealtimeUsersListener();
             } else {
                 currentUser = null;
                 authScreen.classList.remove('hidden');
+                if (unsubscribeUsers) unsubscribeUsers();
             }
         });
+
+        function updateUserHeaderUI(user) {
+            userNameEl.textContent = user.displayName || `User_${user.uid.slice(0,5)}`;
+            if (user.photoURL) {
+                userAvatarEl.src = user.photoURL;
+                userAvatarEl.classList.remove('hidden');
+                userAvatarFallback.classList.add('hidden');
+            } else {
+                userAvatarEl.classList.add('hidden');
+                userAvatarFallback.classList.remove('hidden');
+                userAvatarFallback.textContent = (user.displayName || 'U')[0].toUpperCase();
+            }
+        }
 
         // Sign In Handlers
         googleLoginBtn.addEventListener('click', async () => {
@@ -225,44 +276,116 @@
 
         logoutBtn.addEventListener('click', () => signOut(auth));
 
-        // Load all users for chat list
-        async function loadUsers(filter = "") {
-            chatListEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">Loading users...</div>';
-            const querySnapshot = await getDocs(collection(db, "users"));
-            chatListEl.innerHTML = '';
-            
-            let count = 0;
-            querySnapshot.forEach((docSnap) => {
-                const userData = docSnap.data();
-                if (userData.uid === currentUser.uid) return; // Don't list self
-                
-                if (filter && !userData.displayName.toLowerCase().includes(filter.toLowerCase())) {
-                    return;
+        // Settings Modal Controls
+        settingsBtn.addEventListener('click', () => {
+            settingsNameInput.value = currentUser.displayName || '';
+            settingsFileInput.value = ''; // Reset file input
+            settingsModal.classList.remove('hidden');
+        });
+
+        const closeSettings = () => settingsModal.classList.add('hidden');
+        closeSettingsBtn.addEventListener('click', closeSettings);
+        cancelSettingsBtn.addEventListener('click', closeSettings);
+
+        // Save Profile Changes (with image file upload)
+        settingsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newName = settingsNameInput.value.trim();
+            const file = settingsFileInput.files[0];
+
+            saveSettingsSubmit.disabled = true;
+            saveSettingsSubmit.textContent = "Saving...";
+
+            try {
+                let photoURL = currentUser.photoURL || '';
+
+                // If user selected a new profile picture file, upload it to Firebase Storage
+                if (file) {
+                    const storageRef = ref(storage, `avatars/${currentUser.uid}_${Date.now()}`);
+                    const snapshot = await uploadBytes(storageRef, file);
+                    photoURL = await getDownloadURL(snapshot.ref);
                 }
 
-                count++;
-                const div = document.createElement('div');
-                div.className = "flex items-center gap-3 p-3 hover:bg-slate-800/50 cursor-pointer transition-colors";
-                div.innerHTML = `
-                    <div class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center shrink-0">
-                        ${userData.photoURL ? `<img src="${userData.photoURL}" class="w-10 h-10 rounded-full object-cover">` : userData.displayName[0].toUpperCase()}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="font-medium text-sm truncate">${userData.displayName}</h4>
-                        <p class="text-xs text-slate-400 truncate">${userData.email}</p>
-                    </div>
-                `;
-                div.addEventListener('click', () => openChat(userData));
-                chatListEl.appendChild(div);
-            });
+                // Update Firebase Auth profile
+                await updateProfile(auth.currentUser, {
+                    displayName: newName,
+                    photoURL: photoURL
+                });
 
-            if (count === 0) {
-                chatListEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">No other users found.</div>';
+                // Update Firestore user document (triggers instant live updates everywhere)
+                await setDoc(doc(db, "users", currentUser.uid), {
+                    displayName: newName,
+                    photoURL: photoURL,
+                    lastSeen: serverTimestamp()
+                }, { merge: true });
+
+                updateUserHeaderUI(auth.currentUser);
+                closeSettings();
+            } catch (error) {
+                console.error("Error updating profile:", error);
+                alert("Failed to update profile. Make sure Firebase Storage is enabled in your Firebase console.");
+            } finally {
+                saveSettingsSubmit.disabled = false;
+                saveSettingsSubmit.textContent = "Save Changes";
             }
+        });
+
+        // Real-time Users List Listener (Instantly updates when anyone changes profile)
+        function startRealtimeUsersListener(filter = "") {
+            if (unsubscribeUsers) unsubscribeUsers();
+
+            unsubscribeUsers = onSnapshot(collection(db, "users"), (querySnapshot) => {
+                chatListEl.innerHTML = '';
+                let count = 0;
+
+                querySnapshot.forEach((docSnap) => {
+                    const userData = docSnap.data();
+                    if (userData.uid === currentUser.uid) return; // Don't list self
+                    
+                    if (filter && !userData.displayName.toLowerCase().includes(filter.toLowerCase())) {
+                        return;
+                    }
+
+                    count++;
+                    const div = document.createElement('div');
+                    div.className = "flex items-center gap-3 p-3 hover:bg-slate-800/50 cursor-pointer transition-colors";
+                    
+                    const avatarContent = userData.photoURL 
+                        ? `<img src="${userData.photoURL}" class="w-10 h-10 rounded-full object-cover">` 
+                        : userData.displayName[0].toUpperCase();
+
+                    div.innerHTML = `
+                        <div class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center shrink-0 overflow-hidden">
+                            ${avatarContent}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-medium text-sm truncate">${userData.displayName}</h4>
+                            <p class="text-xs text-slate-400 truncate">${userData.email}</p>
+                        </div>
+                    `;
+                    div.addEventListener('click', () => openChat(userData));
+                    chatListEl.appendChild(div);
+                });
+
+                if (count === 0) {
+                    chatListEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">No other users found.</div>';
+                }
+
+                // If active chat user updates profile, update chat header live too
+                if (activeChatUser) {
+                    const updatedActiveUser = querySnapshot.docs.find(d => d.data().uid === activeChatUser.uid);
+                    if (updatedActiveUser) {
+                        const freshData = updatedActiveUser.data();
+                        activeChatUser = freshData;
+                        activeChatNameEl.textContent = freshData.displayName;
+                        activeChatAvatarEl.innerHTML = freshData.photoURL ? `<img src="${freshData.photoURL}" class="w-9 h-9 rounded-full object-cover">` : freshData.displayName[0].toUpperCase();
+                    }
+                }
+            });
         }
 
         userSearchInput.addEventListener('input', (e) => {
-            loadUsers(e.target.value);
+            startRealtimeUsersListener(e.target.value);
         });
 
         // Open chat with a user
@@ -277,7 +400,7 @@
                 chatMainContainer.classList.remove('hidden');
                 chatMainContainer.classList.add('flex');
             } else {
-                // On PC, ensure both sidebar and chat container remain visible side-by-side
+                // On PC, keep sidebar and chat visible side-by-side
                 sidebarContainer.classList.remove('hidden');
                 chatMainContainer.classList.remove('hidden');
                 chatMainContainer.classList.add('flex');
