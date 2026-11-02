@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Messenger</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 500: '#6366f1', 600: '#4f46e5' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden font-sans">
+
+    <!-- App Container -->
+    <div id="app" class="flex h-full w-full relative">
+
+        <!-- AUTH SCREEN (Shown if not logged in) -->
+        <div id="auth-screen" class="absolute inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-4">
+            <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl text-center">
+                <div class="w-16 h-16 bg-brand-600/20 text-brand-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-6">
+                    <i class="fa-solid fa-comments"></i>
+                </div>
+                <h1 class="text-2xl font-bold mb-2">Web Messenger</h1>
+                <p class="text-slate-400 text-sm mb-8">Sign in to start messaging friends instantly in real-time.</p>
+                
+                <button id="google-login-btn" class="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg mb-3">
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5" alt="Google">
+                    Continue with Google
+                </button>
+                <button id="anon-login-btn" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 px-4 rounded-xl transition-all">
+                    Continue Anonymously
+                </button>
+            </div>
+        </div>
+
+        <!-- SIDEBAR: Conversations & Users -->
+        <div class="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/50">
+            <!-- User Header -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img id="user-avatar" src="" alt="Avatar" class="w-10 h-10 rounded-full bg-slate-700 object-cover hidden">
+                    <div id="user-avatar-fallback" class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center">?</div>
+                    <div>
+                        <h3 id="user-name" class="font-semibold text-sm truncate max-w-[140px]">Loading...</h3>
+                        <span class="text-xs text-emerald-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Online</span>
+                    </div>
+                </div>
+                <button id="logout-btn" title="Sign Out" class="text-slate-400 hover:text-rose-400 p-2 rounded-lg transition-colors">
+                    <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Search / Filter Users -->
+            <div class="p-3 border-b border-slate-800/60">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-sm"></i>
+                    <input type="text" id="user-search" placeholder="Search chats or users..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand-500 transition-colors">
+                </div>
+            </div>
+
+            <!-- Chat List -->
+            <div id="chat-list" class="flex-1 overflow-y-auto divide-y divide-slate-800/40">
+                <!-- Populated dynamically -->
+                <div class="p-4 text-center text-slate-500 text-sm">Loading chats...</div>
+            </div>
+        </div>
+
+        <!-- MAIN CHAT AREA -->
+        <div class="hidden md:flex flex-1 flex-col bg-slate-950 relative" id="chat-main-container">
+            <!-- Empty State -->
+            <div id="no-chat-selected" class="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                <div class="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-2xl text-slate-600 mb-4">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </div>
+                <h3 class="text-lg font-medium text-slate-300 mb-1">Your Messages</h3>
+                <p class="text-sm max-w-sm">Select a contact from the sidebar or search for someone to start chatting.</p>
+            </div>
+
+            <!-- Active Chat Box (Hidden until chat selected) -->
+            <div id="active-chat" class="hidden flex-1 flex flex-col h-full">
+                <!-- Chat Header -->
+                <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/40 backdrop-blur">
+                    <div class="flex items-center gap-3">
+                        <div id="active-chat-avatar" class="w-9 h-9 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-sm">?</div>
+                        <div>
+                            <h3 id="active-chat-name" class="font-semibold text-sm">Chat Name</h3>
+                            <span id="active-chat-status" class="text-xs text-slate-400">Active now</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message History -->
+                <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col">
+                    <!-- Messages go here -->
+                </div>
+
+                <!-- Message Input Bar -->
+                <form id="message-form" class="p-4 border-t border-slate-800 bg-slate-900/40 flex items-center gap-3">
+                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500 transition-colors">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white px-5 py-3 rounded-xl font-medium transition-colors flex items-center justify-center">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBgZe_h6ydOaQVNFQKrNOwnkooG565ZkB0",
+            authDomain: "messages-6707f.firebaseapp.com",
+            projectId: "messages-6707f",
+            storageBucket: "messages-6707f.firebasestorage.app",
+            messagingSenderId: "1033412657768",
+            appId: "1:1033412657768:web:c614b5a9f48065ee14b1dd",
+            measurementId: "G-DZ2VGD4SZM"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // App state
+        let currentUser = null;
+        let activeChatUser = null;
+        let unsubscribeMessages = null;
+
+        // DOM Elements
+        const authScreen = document.getElementById('auth-screen');
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const anonLoginBtn = document.getElementById('anon-login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userNameEl = document.getElementById('user-name');
+        const userAvatarEl = document.getElementById('user-avatar');
+        const userAvatarFallback = document.getElementById('user-avatar-fallback');
+        const chatListEl = document.getElementById('chat-list');
+        const noChatSelectedEl = document.getElementById('no-chat-selected');
+        const activeChatEl = document.getElementById('active-chat');
+        const activeChatNameEl = document.getElementById('active-chat-name');
+        const activeChatAvatarEl = document.getElementById('active-chat-avatar');
+        const messageContainer = document.getElementById('message-container');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const userSearchInput = document.getElementById('user-search');
+
+        // Auth State Listener
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                authScreen.classList.add('hidden');
+                
+                // Update UI Profile
+                userNameEl.textContent = user.displayName || `User_${user.uid.slice(0,5)}`;
+                if (user.photoURL) {
+                    userAvatarEl.src = user.photoURL;
+                    userAvatarEl.classList.remove('hidden');
+                    userAvatarFallback.classList.add('hidden');
+                } else {
+                    userAvatarFallback.textContent = (user.displayName || 'U')[0].toUpperCase();
+                }
+
+                // Register user in Firestore directory
+                await setDoc(doc(db, "users", user.uid), {
+                    uid: user.uid,
+                    displayName: user.displayName || `User_${user.uid.slice(0,5)}`,
+                    email: user.email || 'Anonymous',
+                    photoURL: user.photoURL || '',
+                    lastSeen: serverTimestamp()
+                }, { merge: true });
+
+                loadUsers();
+            } else {
+                currentUser = null;
+                authScreen.classList.remove('hidden');
+            }
+        });
+
+        // Sign In Handlers
+        googleLoginBtn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Google Auth Error:", error);
+                alert("Failed to sign in with Google. Ensure your domain is added to Authorized Domains in Firebase console.");
+            }
+        });
+
+        anonLoginBtn.addEventListener('click', async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Anonymous Auth Error:", error);
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => signOut(auth));
+
+        // Load all users for chat list
+        async function loadUsers(filter = "") {
+            chatListEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">Loading users...</div>';
+            const querySnapshot = await getDocs(collection(db, "users"));
+            chatListEl.innerHTML = '';
+            
+            let count = 0;
+            querySnapshot.forEach((docSnap) => {
+                const userData = docSnap.data();
+                if (userData.uid === currentUser.uid) return; // Don't list self
+                
+                if (filter && !userData.displayName.toLowerCase().includes(filter.toLowerCase())) {
+                    return;
+                }
+
+                count++;
+                const div = document.createElement('div');
+                div.className = "flex items-center gap-3 p-3 hover:bg-slate-800/50 cursor-pointer transition-colors";
+                div.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center shrink-0">
+                        ${userData.photoURL ? `<img src="${userData.photoURL}" class="w-10 h-10 rounded-full object-cover">` : userData.displayName[0].toUpperCase()}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-medium text-sm truncate">${userData.displayName}</h4>
+                        <p class="text-xs text-slate-400 truncate">${userData.email}</p>
+                    </div>
+                `;
+                div.addEventListener('click', () => openChat(userData));
+                chatListEl.appendChild(div);
+            });
+
+            if (count === 0) {
+                chatListEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">No other users found.</div>';
+            }
+        }
+
+        userSearchInput.addEventListener('input', (e) => {
+            loadUsers(e.target.value);
+        });
+
+        // Open chat with a user
+        function openChat(user) {
+            activeChatUser = user;
+            noChatSelectedEl.classList.add('hidden');
+            activeChatEl.classList.remove('hidden');
+
+            activeChatNameEl.textContent = user.displayName;
+            activeChatAvatarEl.innerHTML = user.photoURL ? `<img src="${user.photoURL}" class="w-9 h-9 rounded-full object-cover">` : user.displayName[0].toUpperCase();
+
+            // Generate unique chat room ID (alphabetically sorted user IDs)
+            const chatId = [currentUser.uid, user.uid].sort().join('_');
+
+            if (unsubscribeMessages) unsubscribeMessages();
+
+            const q = query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
+            unsubscribeMessages = onSnapshot(q, (snapshot) => {
+                messageContainer.innerHTML = '';
+                snapshot.forEach((doc) => {
+                    const msg = doc.data();
+                    const isMe = msg.senderId === currentUser.uid;
+                    const bubble = document.createElement('div');
+                    bubble.className = `max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${isMe ? 'bg-brand-600 text-white self-end rounded-br-none' : 'bg-slate-900 border border-slate-800 text-slate-200 self-start rounded-bl-none'}`;
+                    bubble.innerHTML = `
+                        <p class="break-words">${escapeHtml(msg.text)}</p>
+                        <span class="block text-[10px] mt-1 text-right ${isMe ? 'text-indigo-200' : 'text-slate-500'}">${formatTime(msg.timestamp)}</span>
+                    `;
+                    messageContainer.appendChild(bubble);
+                });
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            });
+        }
+
+        // Send Message
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (!text || !activeChatUser) return;
+
+            const chatId = [currentUser.uid, activeChatUser.uid].sort().join('_');
+            messageInput.value = '';
+
+            await addDoc(collection(db, "chats", chatId, "messages"), {
+                text: text,
+                senderId: currentUser.uid,
+                receiverId: activeChatUser.uid,
+                timestamp: serverTimestamp()
+            });
+        });
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '';
+            const date = timestamp.toDate();
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    </script>
+</body>
+</html>
