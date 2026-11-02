@@ -45,7 +45,7 @@
         </div>
 
         <!-- SIDEBAR: Conversations & Users -->
-        <div id="sidebar-container" class="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/50">
+        <div id="sidebar-container" class="w-full md:w-80 border-r border-slate-800 flex flex-col bg-slate-900/50 shrink-0">
             <!-- User Header -->
             <div class="p-4 border-b border-slate-800 flex items-center justify-between">
                 <div class="flex items-center gap-3">
@@ -271,10 +271,17 @@
             noChatSelectedEl.classList.add('hidden');
             activeChatEl.classList.remove('hidden');
 
-            // Toggle visibility for mobile screens
-            sidebarContainer.classList.add('hidden');
-            chatMainContainer.classList.remove('hidden');
-            chatMainContainer.classList.add('flex');
+            // On mobile devices only, hide sidebar and show chat main container
+            if (window.innerWidth < 768) {
+                sidebarContainer.classList.add('hidden');
+                chatMainContainer.classList.remove('hidden');
+                chatMainContainer.classList.add('flex');
+            } else {
+                // On PC, ensure both sidebar and chat container remain visible side-by-side
+                sidebarContainer.classList.remove('hidden');
+                chatMainContainer.classList.remove('hidden');
+                chatMainContainer.classList.add('flex');
+            }
 
             activeChatNameEl.textContent = user.displayName;
             activeChatAvatarEl.innerHTML = user.photoURL ? `<img src="${user.photoURL}" class="w-9 h-9 rounded-full object-cover">` : user.displayName[0].toUpperCase();
