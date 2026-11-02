@@ -156,7 +156,7 @@
     <!-- Firebase SDK Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, setDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
         // Your web app's Firebase configuration
@@ -178,6 +178,7 @@
         // App state
         let currentUser = null;
         let activeChatUser = null;
+        let currentCustomPhoto = "";
         let unsubscribeMessages = null;
         let unsubscribeUsers = null;
 
@@ -220,15 +221,24 @@
                 currentUser = user;
                 authScreen.classList.add('hidden');
                 
-                // Update UI Profile Header
-                updateUserHeaderUI(user);
+                // Fetch user data from Firestore to get custom profile photo if exists
+                const userDocRef = doc(db, "users", user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                
+                if (userDocSnap.exists() && userDocSnap.data().photoURL) {
+                    currentCustomPhoto = userDocSnap.data().photoURL;
+                } else {
+                    currentCustomPhoto = user.photoURL || '';
+                }
+
+                updateUserHeaderUI(user.displayName || `User_${user.uid.slice(0,5)}`, currentCustomPhoto);
 
                 // Register user in Firestore directory
-                await setDoc(doc(db, "users", user.uid), {
+                await setDoc(userDocRef, {
                     uid: user.uid,
                     displayName: user.displayName || `User_${user.uid.slice(0,5)}`,
                     email: user.email || 'Anonymous',
-                    photoURL: user.photoURL || '',
+                    photoURL: currentCustomPhoto,
                     lastSeen: serverTimestamp()
                 }, { merge: true });
 
@@ -240,16 +250,16 @@
             }
         });
 
-        function updateUserHeaderUI(user) {
-            userNameEl.textContent = user.displayName || `User_${user.uid.slice(0,5)}`;
-            if (user.photoURL) {
-                userAvatarEl.src = user.photoURL;
+        function updateUserHeaderUI(name, photoURL) {
+            userNameEl.textContent = name;
+            if (photoURL) {
+                userAvatarEl.src = photoURL;
                 userAvatarEl.classList.remove('hidden');
                 userAvatarFallback.classList.add('hidden');
             } else {
                 userAvatarEl.classList.add('hidden');
                 userAvatarFallback.classList.remove('hidden');
-                userAvatarFallback.textContent = (user.displayName || 'U')[0].toUpperCase();
+                userAvatarFallback.textContent = (name || 'U')[0].toUpperCase();
             }
         }
 
@@ -285,7 +295,7 @@
         closeSettingsBtn.addEventListener('click', closeSettings);
         cancelSettingsBtn.addEventListener('click', closeSettings);
 
-        // Helper function to convert uploaded image file to a compressed Base64 string
+        // Helper function to compress image into tiny Base64 string
         function convertFileToBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -293,8 +303,8 @@
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 150;
-                        const MAX_HEIGHT = 150;
+                        const MAX_WIDTH = 90;
+                        const MAX_HEIGHT = 90;
                         let width = img.width;
                         let height = img.height;
 
@@ -314,7 +324,7 @@
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7)); // Compressed JPEG Base64
+                        resolve(canvas.toDataURL('image/jpeg', 0.6)); // Highly compressed JPEG
                     };
                     img.onerror = reject;
                     img.src = reader.result;
@@ -324,7 +334,7 @@
             });
         }
 
-        // Save Profile Changes (using Base64 encoding - NO STORAGE BILLS)
+        // Save Profile Changes
         settingsForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const newName = settingsNameInput.value.trim();
@@ -334,37 +344,33 @@
             saveSettingsSubmit.textContent = "Saving...";
 
             try {
-                let photoURL = currentUser.photoURL || '';
+                let photoURL = currentCustomPhoto;
 
                 if (file) {
                     photoURL = await convertFileToBase64(file);
                 }
 
-                // Update Firebase Auth profile
-                await updateProfile(auth.currentUser, {
-                    displayName: newName,
-                    photoURL: photoURL
-                });
+                currentCustomPhoto = photoURL;
 
-                // Update Firestore user document (triggers instant live updates everywhere)
+                // Update Firestore user document directly (avoids storage costs and size errors)
                 await setDoc(doc(db, "users", currentUser.uid), {
                     displayName: newName,
                     photoURL: photoURL,
                     lastSeen: serverTimestamp()
                 }, { merge: true });
 
-                updateUserHeaderUI(auth.currentUser);
+                updateUserHeaderUI(newName, photoURL);
                 closeSettings();
             } catch (error) {
                 console.error("Error updating profile:", error);
-                alert("Failed to update profile.");
+                alert("Failed to update profile. Image might be too large.");
             } finally {
                 saveSettingsSubmit.disabled = false;
                 saveSettingsSubmit.textContent = "Save Changes";
             }
         });
 
-        // Real-time Users List Listener (Instantly updates when anyone changes profile)
+        // Real-time Users List Listener
         function startRealtimeUsersListener(filter = "") {
             if (unsubscribeUsers) unsubscribeUsers();
 
@@ -405,7 +411,7 @@
                     chatListEl.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">No other users found.</div>';
                 }
 
-                // If active chat user updates profile, update chat header live too
+                // Update active chat header live if they update profile
                 if (activeChatUser) {
                     const updatedActiveUser = querySnapshot.docs.find(d => d.data().uid === activeChatUser.uid);
                     if (updatedActiveUser) {
@@ -428,13 +434,11 @@
             noChatSelectedEl.classList.add('hidden');
             activeChatEl.classList.remove('hidden');
 
-            // On mobile devices only, hide sidebar and show chat main container
             if (window.innerWidth < 768) {
                 sidebarContainer.classList.add('hidden');
                 chatMainContainer.classList.remove('hidden');
                 chatMainContainer.classList.add('flex');
             } else {
-                // On PC, keep sidebar and chat visible side-by-side
                 sidebarContainer.classList.remove('hidden');
                 chatMainContainer.classList.remove('hidden');
                 chatMainContainer.classList.add('flex');
@@ -443,7 +447,6 @@
             activeChatNameEl.textContent = user.displayName;
             activeChatAvatarEl.innerHTML = user.photoURL ? `<img src="${user.photoURL}" class="w-9 h-9 rounded-full object-cover">` : user.displayName[0].toUpperCase();
 
-            // Generate unique chat room ID (alphabetically sorted user IDs)
             const chatId = [currentUser.uid, user.uid].sort().join('_');
 
             if (unsubscribeMessages) unsubscribeMessages();
@@ -466,14 +469,12 @@
             });
         }
 
-        // Back button listener for mobile navigation
         backToListBtn.addEventListener('click', () => {
             sidebarContainer.classList.remove('hidden');
             chatMainContainer.classList.add('hidden');
             chatMainContainer.classList.remove('flex');
         });
 
-        // Send Message
         messageForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = messageInput.value.trim();
