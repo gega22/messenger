@@ -21,6 +21,7 @@ let activeChatUser = null;
 let currentCustomPhoto = "";
 let unsubscribeMessages = null;
 let unsubscribeUsers = null;
+let presenceInterval = null;
 
 let loadedImage = null;
 let imgX = 0, imgY = 0;
@@ -40,6 +41,7 @@ const noChatSelectedEl = document.getElementById('no-chat-selected');
 const activeChatEl = document.getElementById('active-chat');
 const activeChatNameEl = document.getElementById('active-chat-name');
 const activeChatAvatarEl = document.getElementById('active-chat-avatar');
+const activeChatStatusEl = document.getElementById('active-chat-status');
 const messageContainer = document.getElementById('message-container');
 const messageForm = document.getElementById('message-form');
 const messageInput = document.getElementById('message-input');
@@ -62,6 +64,20 @@ const cropCanvas = document.getElementById('crop-canvas');
 const ctx = cropCanvas.getContext('2d');
 const zoomSlider = document.getElementById('zoom-slider');
 
+// Helper function to set user offline instantly
+async function setOfflineStatus(user) {
+    if (!user) return;
+    try {
+        const userDocRef = doc(db, "users", user.uid);
+        // Setting lastSeen to 0 makes it instantly older than 45 seconds (offline)
+        await setDoc(userDocRef, {
+            lastSeen: new Date(0)
+        }, { merge: true });
+    } catch (err) {
+        console.error("Error setting offline status:", err);
+    }
+}
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
@@ -78,19 +94,43 @@ onAuthStateChanged(auth, async (user) => {
 
         updateUserHeaderUI(user.displayName || `User_${user.uid.slice(0,5)}`, currentCustomPhoto);
 
-        await setDoc(userDocRef, {
-            uid: user.uid,
-            displayName: user.displayName || `User_${user.uid.slice(0,5)}`,
-            email: user.email || 'Anonymous',
-            photoURL: currentCustomPhoto,
-            lastSeen: serverTimestamp()
-        }, { merge: true });
+        const updatePresence = async () => {
+            try {
+                await setDoc(userDocRef, {
+                    uid: user.uid,
+                    displayName: user.displayName || `User_${user.uid.slice(0,5)}`,
+                    email: user.email || 'Anonymous',
+                    photoURL: currentCustomPhoto,
+                    lastSeen: serverTimestamp()
+                }, { merge: true });
+            } catch (err) {
+                console.error("Error updating presence:", err);
+            }
+        };
+
+        await updatePresence();
+        if (presenceInterval) clearInterval(presenceInterval);
+        presenceInterval = setInterval(updatePresence, 20000);
 
         startRealtimeUsersListener();
     } else {
+        if (currentUser) {
+            await setOfflineStatus(currentUser);
+        }
         currentUser = null;
         authScreen.classList.remove('hidden');
         if (unsubscribeUsers) unsubscribeUsers();
+        if (presenceInterval) clearInterval(presenceInterval);
+    }
+});
+
+// Trigger offline status instantly when closing tab or browser
+window.addEventListener('beforeunload', () => {
+    if (currentUser) {
+        // Use sendBeacon or synchronous flag if needed, 
+        // but setting lastSeen to old date via navigator/fetch or quick setDoc if supported:
+        const userDocRef = doc(db, "users", currentUser.uid);
+        setDoc(userDocRef, { lastSeen: new Date(0) }, { merge: true }).catch(() => {});
     }
 });
 
@@ -125,7 +165,12 @@ anonLoginBtn.addEventListener('click', async () => {
     }
 });
 
-logoutBtn.addEventListener('click', () => signOut(auth));
+logoutBtn.addEventListener('click', async () => {
+    if (currentUser) {
+        await setOfflineStatus(currentUser);
+    }
+    signOut(auth);
+});
 
 settingsBtn.addEventListener('click', () => {
     settingsNameInput.value = currentUser.displayName || '';
@@ -248,6 +293,18 @@ settingsForm.addEventListener('submit', async (e) => {
     }
 });
 
+function getUserStatus(lastSeenTimestamp) {
+    if (!lastSeenTimestamp) return { text: "Offline", isOnline: false };
+    const lastSeenDate = lastSeenTimestamp.toDate ? lastSeenTimestamp.toDate() : new Date(lastSeenTimestamp);
+    const diffSeconds = (Date.now() - lastSeenDate.getTime()) / 1000;
+
+    if (diffSeconds < 45) {
+        return { text: "Online", isOnline: true };
+    } else {
+        return { text: "Offline", isOnline: false };
+    }
+}
+
 function startRealtimeUsersListener(filter = "") {
     if (unsubscribeUsers) unsubscribeUsers();
 
@@ -257,7 +314,7 @@ function startRealtimeUsersListener(filter = "") {
 
         querySnapshot.forEach((docSnap) => {
             const userData = docSnap.data();
-            if (userData.uid === currentUser.uid) return;
+            if (currentUser && userData.uid === currentUser.uid) return;
             
             if (filter && !userData.displayName.toLowerCase().includes(filter.toLowerCase())) {
                 return;
@@ -271,14 +328,19 @@ function startRealtimeUsersListener(filter = "") {
                 ? `<img src="${userData.photoURL}" class="w-10 h-10 rounded-full object-cover">` 
                 : userData.displayName[0].toUpperCase();
 
-            // Email removed here to keep user lists completely private
+            const statusInfo = getUserStatus(userData.lastSeen);
+            const statusDotColor = statusInfo.isOnline ? "bg-emerald-400" : "bg-slate-500";
+            const statusTextColor = statusInfo.isOnline ? "text-emerald-400" : "text-slate-500";
+
             div.innerHTML = `
-                <div class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center shrink-0 overflow-hidden">
+                <div class="w-10 h-10 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center shrink-0 overflow-hidden relative">
                     ${avatarContent}
                 </div>
                 <div class="flex-1 min-w-0">
                     <h4 class="font-medium text-sm truncate">${userData.displayName}</h4>
-                    <span class="text-xs text-emerald-400">Online</span>
+                    <span class="text-xs ${statusTextColor} flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full ${statusDotColor}"></span> ${statusInfo.text}
+                    </span>
                 </div>
             `;
             div.addEventListener('click', () => openChat(userData));
@@ -296,6 +358,12 @@ function startRealtimeUsersListener(filter = "") {
                 activeChatUser = freshData;
                 activeChatNameEl.textContent = freshData.displayName;
                 activeChatAvatarEl.innerHTML = freshData.photoURL ? `<img src="${freshData.photoURL}" class="w-9 h-9 rounded-full object-cover">` : freshData.displayName[0].toUpperCase();
+                
+                const activeStatus = getUserStatus(freshData.lastSeen);
+                if (activeChatStatusEl) {
+                    activeChatStatusEl.textContent = activeStatus.text;
+                    activeChatStatusEl.className = `text-xs ${activeStatus.isOnline ? 'text-emerald-400' : 'text-slate-400'}`;
+                }
             }
         }
     });
@@ -322,6 +390,12 @@ function openChat(user) {
 
     activeChatNameEl.textContent = user.displayName;
     activeChatAvatarEl.innerHTML = user.photoURL ? `<img src="${user.photoURL}" class="w-9 h-9 rounded-full object-cover">` : user.displayName[0].toUpperCase();
+
+    const activeStatus = getUserStatus(user.lastSeen);
+    if (activeChatStatusEl) {
+        activeChatStatusEl.textContent = activeStatus.text;
+        activeChatStatusEl.className = `text-xs ${activeStatus.isOnline ? 'text-emerald-400' : 'text-slate-400'}`;
+    }
 
     const chatId = [currentUser.uid, user.uid].sort().join('_');
 
