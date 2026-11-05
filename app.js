@@ -19,6 +19,7 @@ const db = getFirestore(app);
 let currentUser = null;
 let activeChatUser = null;
 let currentCustomPhoto = "";
+let currentDisplayName = "";
 let unsubscribeMessages = null;
 let unsubscribeUsers = null;
 let presenceInterval = null;
@@ -69,7 +70,6 @@ async function setOfflineStatus(user) {
     if (!user) return;
     try {
         const userDocRef = doc(db, "users", user.uid);
-        // Setting lastSeen to 0 makes it instantly older than 45 seconds (offline)
         await setDoc(userDocRef, {
             lastSeen: new Date(0)
         }, { merge: true });
@@ -86,19 +86,22 @@ onAuthStateChanged(auth, async (user) => {
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
         
-        if (userDocSnap.exists() && userDocSnap.data().photoURL) {
-            currentCustomPhoto = userDocSnap.data().photoURL;
+        if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            currentCustomPhoto = data.photoURL || user.photoURL || '';
+            currentDisplayName = data.displayName || user.displayName || `User_${user.uid.slice(0,5)}`;
         } else {
             currentCustomPhoto = user.photoURL || '';
+            currentDisplayName = user.displayName || `User_${user.uid.slice(0,5)}`;
         }
 
-        updateUserHeaderUI(user.displayName || `User_${user.uid.slice(0,5)}`, currentCustomPhoto);
+        updateUserHeaderUI(currentDisplayName, currentCustomPhoto);
 
         const updatePresence = async () => {
             try {
                 await setDoc(userDocRef, {
                     uid: user.uid,
-                    displayName: user.displayName || `User_${user.uid.slice(0,5)}`,
+                    displayName: currentDisplayName,
                     email: user.email || 'Anonymous',
                     photoURL: currentCustomPhoto,
                     lastSeen: serverTimestamp()
@@ -127,8 +130,6 @@ onAuthStateChanged(auth, async (user) => {
 // Trigger offline status instantly when closing tab or browser
 window.addEventListener('beforeunload', () => {
     if (currentUser) {
-        // Use sendBeacon or synchronous flag if needed, 
-        // but setting lastSeen to old date via navigator/fetch or quick setDoc if supported:
         const userDocRef = doc(db, "users", currentUser.uid);
         setDoc(userDocRef, { lastSeen: new Date(0) }, { merge: true }).catch(() => {});
     }
@@ -173,7 +174,7 @@ logoutBtn.addEventListener('click', async () => {
 });
 
 settingsBtn.addEventListener('click', () => {
-    settingsNameInput.value = currentUser.displayName || '';
+    settingsNameInput.value = currentDisplayName || '';
     settingsFileInput.value = '';
     cropContainer.classList.add('hidden');
     loadedImage = null;
@@ -275,6 +276,7 @@ settingsForm.addEventListener('submit', async (e) => {
         }
 
         currentCustomPhoto = photoURL;
+        currentDisplayName = newName;
 
         await setDoc(doc(db, "users", currentUser.uid), {
             displayName: newName,
@@ -420,9 +422,17 @@ function openChat(user) {
 }
 
 backToListBtn.addEventListener('click', () => {
-    sidebarContainer.classList.remove('hidden');
-    chatMainContainer.classList.add('hidden');
-    chatMainContainer.classList.remove('flex');
+    activeChatUser = null;
+    if (unsubscribeMessages) unsubscribeMessages();
+
+    activeChatEl.classList.add('hidden');
+    noChatSelectedEl.classList.remove('hidden');
+
+    if (window.innerWidth < 768) {
+        sidebarContainer.classList.remove('hidden');
+        chatMainContainer.classList.add('hidden');
+        chatMainContainer.classList.remove('flex');
+    }
 });
 
 messageForm.addEventListener('submit', async (e) => {
